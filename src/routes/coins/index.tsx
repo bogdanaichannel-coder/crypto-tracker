@@ -1,9 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { CoinsTable } from '@/core/components/coinsTable/coinsTable'
+import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/coins/')({
-  component: RouteComponent,
-});
+	component: RouteComponent,
+})
 
 function RouteComponent() {
-  return <>Hello "/coins/"!</>;
+	return (
+		<div>
+			<CoinsTable />
+		</div>
+	)
 }

@@ -14,7 +14,7 @@
       "@/core/*": ["./src/core/*"],
       "@/routes/*": ["./src/routes/*"],
       "@/shadcnUI/*": ["./src/core/components/ui/*"],
-      "@/shadcnUI": ["./src/core/components/ui/index.ts"],
+      "@/shadcnUI": ["./src/core/components/ui/index"],
       "@tabler/icons-react": [
         "./node_modules/@tabler/icons-react/dist/esm/icons/index.d.ts"
       ]
