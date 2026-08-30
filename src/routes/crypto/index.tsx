@@ -1,7 +1,7 @@
 import { CoinsTable } from '@/core/components/coinsTable/coinsTable'
 import { createFileRoute } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/coins/')({
+export const Route = createFileRoute('/crypto/')({
 	component: RouteComponent,
 })
 

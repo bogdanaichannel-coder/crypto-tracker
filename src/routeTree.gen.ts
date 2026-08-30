@@ -10,43 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CoinsIndexRouteImport } from './routes/coins/index'
+import { Route as CryptoIndexRouteImport } from './routes/crypto/index'
+import { Route as CryptoCoinRouteImport } from './routes/crypto/$coin'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CoinsIndexRoute = CoinsIndexRouteImport.update({
-  id: '/coins/',
-  path: '/coins/',
+const CryptoIndexRoute = CryptoIndexRouteImport.update({
+  id: '/crypto/',
+  path: '/crypto/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CryptoCoinRoute = CryptoCoinRouteImport.update({
+  id: '/crypto/$coin',
+  path: '/crypto/$coin',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/coins/': typeof CoinsIndexRoute
+  '/crypto/$coin': typeof CryptoCoinRoute
+  '/crypto/': typeof CryptoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/coins': typeof CoinsIndexRoute
+  '/crypto/$coin': typeof CryptoCoinRoute
+  '/crypto': typeof CryptoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/coins/': typeof CoinsIndexRoute
+  '/crypto/$coin': typeof CryptoCoinRoute
+  '/crypto/': typeof CryptoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/coins/'
+  fullPaths: '/' | '/crypto/$coin' | '/crypto/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/coins'
-  id: '__root__' | '/' | '/coins/'
+  to: '/' | '/crypto/$coin' | '/crypto'
+  id: '__root__' | '/' | '/crypto/$coin' | '/crypto/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  CoinsIndexRoute: typeof CoinsIndexRoute
+  CryptoCoinRoute: typeof CryptoCoinRoute
+  CryptoIndexRoute: typeof CryptoIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,11 +68,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/coins/': {
-      id: '/coins/'
-      path: '/coins'
-      fullPath: '/coins/'
-      preLoaderRoute: typeof CoinsIndexRouteImport
+    '/crypto/': {
+      id: '/crypto/'
+      path: '/crypto'
+      fullPath: '/crypto/'
+      preLoaderRoute: typeof CryptoIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/crypto/$coin': {
+      id: '/crypto/$coin'
+      path: '/crypto/$coin'
+      fullPath: '/crypto/$coin'
+      preLoaderRoute: typeof CryptoCoinRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -70,7 +87,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  CoinsIndexRoute: CoinsIndexRoute,
+  CryptoCoinRoute: CryptoCoinRoute,
+  CryptoIndexRoute: CryptoIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

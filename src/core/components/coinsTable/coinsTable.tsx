@@ -1,5 +1,5 @@
 import { useCoinsQuery } from '@/core/api/query/useCoinsQuery'
-import { ICoin } from '@/core/types/coins'
+import { ICoinListItem } from '@/core/types/coins'
 import {
 	Button,
 	Table,
@@ -9,28 +9,26 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/shadcnUI'
+import { Link } from '@tanstack/react-router'
 import {
 	ColumnDef,
 	createColumnHelper,
 	tableFeatures,
 	useTable,
 } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import clsx from 'clsx'
-import { debounce } from 'lodash'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Skeleton } from '../ui/skeleton'
 
-const PER_PAGE = 25
-const ROW_HEIGHT = 44
+const PER_PAGE = 40
 
-// Ширины колонок вручную — фича column-sizing не подключена в tableFeatures({})
-const GRID_ROW_CLASS = 'grid grid-cols-[1fr_1fr_1fr_160px] w-full'
+const GRID_ROW_CLASS =
+	'grid grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_160px_1fr] w-full'
 
 type Props = {}
 
 const features = tableFeatures({})
-const columnHelper = createColumnHelper<typeof features, ICoin>()
+const columnHelper = createColumnHelper<typeof features, ICoinListItem>()
 
 const Spinner = ({ className = '' }: { className?: string }) => (
 	<svg
@@ -58,19 +56,21 @@ const Spinner = ({ className = '' }: { className?: string }) => (
 )
 
 export const CoinsTable = ({}: Props) => {
-	const {
-		data,
-		isLoading,
-		isFetching,
-		isError,
-		error,
-		fetchNextPage,
-		hasNextPage,
-		isFetchingNextPage,
-		isBlocked,
-	} = useCoinsQuery({ per_page: PER_PAGE })
+	const [page, setPage] = useState<number>(1)
+	const [coins, setCoins] = useState<ICoinListItem[]>([])
+	const { data, isFetching, isError, error, isBlocked } = useCoinsQuery({
+		per_page: PER_PAGE,
+		page,
+	})
 
-	const columns: ColumnDef<typeof features, ICoin, any>[] = useMemo(
+	useEffect(() => {
+		if (!data) return
+		setCoins(prev => (page === 1 ? data : [...prev, ...data]))
+	}, [data, page])
+
+	const nextPage = () => setPage(v => v + 1)
+
+	const columns: ColumnDef<typeof features, ICoinListItem, any>[] = useMemo(
 		() => [
 			columnHelper.accessor(
 				row => ({ image: row.image, name: row.symbol.toUpperCase() }),
@@ -91,6 +91,13 @@ export const CoinsTable = ({}: Props) => {
 					),
 				},
 			),
+			columnHelper.accessor('current_price', {
+				header: () => 'Последняя цена',
+				cell: info => {
+					const value = info.getValue<number>()
+					return <span className='font-medium'>${value?.toLocaleString()}</span>
+				},
+			}),
 			columnHelper.accessor('price_change_24h', {
 				header: () => '24ч изм.',
 				cell: info => {
@@ -118,6 +125,22 @@ export const CoinsTable = ({}: Props) => {
 					</span>
 				),
 			}),
+			columnHelper.accessor('low_24h', {
+				header: () => '24ч минимум',
+				cell: info => (
+					<span className='text-muted-foreground'>
+						${info.getValue<number>()?.toLocaleString()}
+					</span>
+				),
+			}),
+			columnHelper.accessor('market_cap_change_24h', {
+				header: () => 'Объём за 24 ч.',
+				cell: info => (
+					<span className='text-muted-foreground'>
+						${info.getValue<number>()?.toLocaleString()}
+					</span>
+				),
+			}),
 			columnHelper.accessor('ath_date', {
 				header: () => 'Дата максимума',
 				cell: info => (
@@ -126,83 +149,36 @@ export const CoinsTable = ({}: Props) => {
 					</span>
 				),
 			}),
+			columnHelper.accessor('id', {
+				header: () => '',
+				cell: info => (
+					<Link
+						to='/crypto/$coin/'
+						params={{ coin: info.getValue().toLowerCase() }}
+					>
+						<Button variant={'link'} className=' text-amber-500'>
+							Детали
+						</Button>
+					</Link>
+				),
+			}),
 		],
 		[],
-	)
-
-	const flatData = useMemo(
-		() => data?.pages.flatMap(page => page) ?? [],
-		[data],
 	)
 
 	const table = useTable({
 		key: 'coins-table',
 		features,
 		columns,
-		data: flatData,
+		data: coins,
 	})
 
 	const { rows } = table.getRowModel()
-
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-
-	const virtualizer = useVirtualizer({
-		count: rows.length,
-		getScrollElement: () => scrollContainerRef.current,
-		estimateSize: () => ROW_HEIGHT,
-		overscan: 6,
-		measureElement:
-			typeof window !== 'undefined' &&
-			navigator.userAgent.indexOf('Firefox') === -1
-				? element => element?.getBoundingClientRect().height
-				: undefined,
-	})
-
-	const virtualRows = virtualizer.getVirtualItems()
-
-	useEffect(() => {
-		const element = scrollContainerRef.current
-		if (!element) return
-
-		const handleScroll = debounce(() => {
-			const nearBottom =
-				element.scrollTop + element.clientHeight >= element.scrollHeight - 200
-
-			if (!nearBottom) return
-			if (
-				isFetching ||
-				isFetchingNextPage ||
-				isError ||
-				!hasNextPage ||
-				isBlocked
-			)
-				return
-
-			fetchNextPage()
-		}, 300)
-
-		element.addEventListener('scroll', handleScroll)
-		return () => {
-			element.removeEventListener('scroll', handleScroll)
-			handleScroll.cancel()
-		}
-	}, [
-		isFetching,
-		isFetchingNextPage,
-		isError,
-		hasNextPage,
-		isBlocked,
-		fetchNextPage,
-	])
-
-	const showEmptyState = !isLoading && !isError && flatData.length === 0
+	const isEmpty = !isFetching && coins.length === 0
 
 	return (
-		<div className='flex flex-col gap-3'>
-			<div
-				ref={scrollContainerRef}
-				className='relative overflow-y-auto max-h-[80dvh] rounded-xl border border-border bg-background shadow-sm'
-			>
+		<div className='flex  flex-col gap-3'>
+			<div className='relative overflow-y-auto h-full max-h-[80dvh] border border-border bg-background shadow-sm'>
 				{table.getHeaderGroups().map(headerGroup => (
 					<TableHeader
 						key={headerGroup.id}
@@ -225,12 +201,26 @@ export const CoinsTable = ({}: Props) => {
 						</TableRow>
 					</TableHeader>
 				))}
+
 				<Table className='static grid'>
-					<TableBody
-						className='grid relative'
-						style={{ height: `${virtualizer.getTotalSize()}px` }}
-					>
-						{isLoading &&
+					<TableBody className='grid h-full'>
+						{rows.map(row => (
+							<TableRow
+								key={row.id}
+								className={clsx(
+									GRID_ROW_CLASS,
+									'border-b border-border/60 hover:bg-muted/50 transition-colors',
+								)}
+							>
+								{row.getAllCells().map(cell => (
+									<TableCell key={cell.id} className='py-3'>
+										<table.FlexRender cell={cell} />
+									</TableCell>
+								))}
+							</TableRow>
+						))}
+
+						{isFetching &&
 							Array.from({ length: PER_PAGE }).map((_, rowIndex) => (
 								<TableRow
 									key={`skeleton-${rowIndex}`}
@@ -246,46 +236,27 @@ export const CoinsTable = ({}: Props) => {
 									))}
 								</TableRow>
 							))}
-
-						{!isLoading &&
-							virtualRows.map(virtualRow => {
-								const row = rows[virtualRow.index]
-								return (
-									<TableRow
-										key={row.id}
-										data-index={virtualRow.index}
-										ref={node => virtualizer.measureElement(node)}
-										className={clsx(
-											GRID_ROW_CLASS,
-											'absolute top-0 left-0 border-b border-border/60 hover:bg-muted/50 transition-colors',
-										)}
-										style={{
-											transform: `translateY(${virtualRow.start}px)`,
-										}}
-									>
-										{row.getAllCells().map(cell => (
-											<TableCell key={cell.id} className='py-3'>
-												<table.FlexRender cell={cell} />
-											</TableCell>
-										))}
-									</TableRow>
-								)
-							})}
+						<Button
+							variant='ghost'
+							className='p-6 rounded-none'
+							disabled={isBlocked || isFetching}
+							onClick={nextPage}
+						>
+							{isFetching ? (
+								<>
+									<Spinner className='mr-2' />
+									Загрузка…
+								</>
+							) : (
+								'Показать ещё'
+							)}
+						</Button>
 					</TableBody>
 				</Table>
 
-				{showEmptyState && (
+				{isEmpty && (
 					<div className='flex items-center justify-center py-16 text-sm text-muted-foreground'>
 						Монеты не найдены
-					</div>
-				)}
-
-				{/* Индикатор дозагрузки — вынесен из виртуализированного тела,
-				    чтобы не накладываться на строки и всегда быть виден внизу списка */}
-				{isFetchingNextPage && (
-					<div className='sticky bottom-0 left-0 right-0 flex items-center justify-center gap-2 py-3 bg-background/95 backdrop-blur-sm border-t border-border text-sm text-muted-foreground'>
-						<Spinner />
-						Загружаем ещё монеты…
 					</div>
 				)}
 			</div>
@@ -294,40 +265,6 @@ export const CoinsTable = ({}: Props) => {
 				<div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600'>
 					Ошибка загрузки: {String(error)}
 				</div>
-			)}
-
-			{hasNextPage && !isLoading && (
-				<Button
-					variant='outline'
-					className='self-center'
-					disabled={
-						isBlocked ||
-						isFetching ||
-						isFetchingNextPage ||
-						!hasNextPage ||
-						isError
-					}
-					onClick={() => {
-						if (
-							isBlocked ||
-							isFetching ||
-							isFetchingNextPage ||
-							!hasNextPage ||
-							isError
-						)
-							return
-						fetchNextPage()
-					}}
-				>
-					{isFetchingNextPage ? (
-						<>
-							<Spinner className='mr-2' />
-							Загрузка…
-						</>
-					) : (
-						'Показать ещё'
-					)}
-				</Button>
 			)}
 		</div>
 	)

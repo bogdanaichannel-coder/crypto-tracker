@@ -1,6 +1,6 @@
-export type CoinsType = ICoin[]
+export type CoinsType = ICoinListItem[]
 
-export interface ICoin {
+export interface ICoinListItem {
 	id: string
 	symbol: string
 	name: string

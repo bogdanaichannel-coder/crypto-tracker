@@ -1,14 +1,12 @@
 import { NAVIGATION_ROUTES } from '@/core/constantns/route/navigation'
-import { cn } from '@/core/lib/utils'
-import { Button, Input } from '@/shadcnUI'
+
 import {
-	IconBell,
 	IconChevronDown,
 	IconEyeBitcoin,
-	IconMenu,
 	IconSearch,
 } from '@tabler/icons-react'
 import { Link } from '@tanstack/react-router'
+import { Input } from '../ui'
 
 const NAV_ITEMS = Object.values(NAVIGATION_ROUTES)
 
@@ -26,7 +24,6 @@ export function Header() {
 							CryptoTracker
 						</span>
 					</Link>
-					{/* Основная навигация */}
 					<nav className='hidden md:flex items-center gap-1'>
 						{NAV_ITEMS.map(item => (
 							<Link
@@ -47,7 +44,6 @@ export function Header() {
 						</button>
 					</nav>
 
-					{/* Поиск */}
 					<div className='hidden lg:flex flex-1 max-w-xs ml-auto'>
 						<div className='relative w-full'>
 							<IconSearch className='absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground' />
@@ -58,8 +54,7 @@ export function Header() {
 						</div>
 					</div>
 
-					{/* Правый блок */}
-					<div className={cn('flex items-center gap-2', 'lg:ml-0 ml-auto')}>
+					{/* <div className={cn('flex items-center gap-2', 'lg:ml-0 ml-auto')}>
 						<Button variant='ghost' size='icon' className='hidden sm:flex'>
 							<IconBell className='size-4' />
 						</Button>
@@ -77,7 +72,7 @@ export function Header() {
 						<Button variant='ghost' size='icon' className='md:hidden'>
 							<IconMenu className='size-5' />
 						</Button>
-					</div>
+					</div> */}
 				</div>
 			</header>
 		</>
