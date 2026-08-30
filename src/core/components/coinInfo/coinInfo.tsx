@@ -1,204 +1,108 @@
-import { Badge, Card, Separator } from '@/core/components/ui'
-import { IconBrandGithub, IconBrandTwitter } from '@tabler/icons-react'
-import { Globe, MessageCircle, Send } from 'lucide-react'
-import { useState } from 'react'
+import { Badge } from '@/core/components/ui'
 import { CoinInfoProps } from './coinInfo.types'
 import {
+	buildHistoryRows,
+	buildOverviewText,
 	compactFormatter,
 	currencyFormatter,
-	dateFormatter,
-	stripHtml,
 } from './coinInfo.utils'
 import { ChangeBadge } from './components/ChangeBadge'
 import { CoinInfoSkeleton } from './components/CoinInfoSkeleton'
-import { LinkIcon } from './components/LinkIcon'
-import { SupplyGauge } from './components/SupplyGauge'
+import { ConvertCalculator } from './components/ConvertCalculator'
+import { LinksCard } from './components/LinksCard'
+import { OverviewSection } from './components/OverviewSection'
+import { PriceHistoryTable } from './components/PriceHistoryTable'
+import { SentimentBar } from './components/SentimentBar'
+import { StatCard } from './components/StatCard'
 
-export function CoinInfo({ data, isPending, isError }: CoinInfoProps) {
-	const [descExpanded, setDescExpanded] = useState(false)
-
+export function CoinInfo({
+	data,
+	isPending,
+	isError,
+	children = [],
+}: CoinInfoProps) {
 	if (isPending) return <CoinInfoSkeleton />
 
 	if (isError || !data) {
 		return (
-			<Card className='border-white/70 p-6 text-sm text-rose-400'>
+			<div className='rounded-2xl border border-slate-200 bg-white p-6 text-sm text-rose-600'>
 				Не удалось загрузить данные по монете
-			</Card>
+			</div>
 		)
 	}
 
 	const md = data.market_data
-	const priceChange24h = md.price_change_percentage_24h
-	const description = stripHtml(data.description?.en)
-	const shortDescription = description?.slice(0, 260)
+	const historyRows = buildHistoryRows(data)
+	const overviewText = buildOverviewText(data)
 
 	return (
-		<Card className='flex flex-col gap-6 border-white/70 bg-yellow-50 p-6'>
-			<div className='flex flex-wrap items-center justify-between gap-4'>
-				<div className='flex items-center gap-3'>
-					<img
-						src={data.image?.large}
-						alt={data.name}
-						className='h-12 w-12 rounded-full bg-white/5'
-					/>
-					<div className='flex flex-col'>
-						<div className='flex items-center gap-2'>
-							<h2 className='text-lg font-semibold text-foreground'>
-								{data.name}
-							</h2>
-							<span className='text-sm uppercase text-muted-foreground'>
-								{data.symbol}
-							</span>
+		<div className='grid grid-cols-1 gap-4 lg:grid-cols-3'>
+			<div className='flex flex-col gap-4 lg:col-span-2'>
+				<div className='rounded-2xl border border-slate-200 bg-white p-6'>
+					<div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
+						<div className='flex items-center gap-3'>
+							<img
+								src={data.image?.large}
+								alt={data.name}
+								className='h-10 w-10 rounded-full'
+							/>
+							<div className='flex items-center gap-2'>
+								<h2 className='text-lg font-semibold text-slate-900'>
+									{data.name}
+								</h2>
+								<span className='text-sm uppercase text-slate-400'>
+									{data.symbol}
+								</span>
+							</div>
 						</div>
 						{data.market_cap_rank && (
-							<Badge className='w-fit bg-amber-400/10 text-amber-400 hover:bg-amber-400/10'>
+							<Badge className='bg-amber-50 text-amber-600 hover:bg-amber-50'>
 								Rank #{data.market_cap_rank}
 							</Badge>
 						)}
 					</div>
-				</div>
 
-				<div className='flex items-center gap-1'>
-					<LinkIcon
-						href={data.links?.homepage?.[0]}
-						label='Website'
-						icon={<Globe className='h-4 w-4' />}
-					/>
-					<LinkIcon
-						href={
-							data.links?.twitter_screen_name
-								? `https://x.com/${data.links.twitter_screen_name}`
-								: undefined
-						}
-						label='Twitter'
-						icon={<IconBrandTwitter className='h-4 w-4' />}
-					/>
-					<LinkIcon
-						href={data.links?.repos_url?.github?.[0]}
-						label='GitHub'
-						icon={<IconBrandGithub className='h-4 w-4' />}
-					/>
-					<LinkIcon
-						href={
-							data.links?.telegram_channel_identifier
-								? `https://t.me/${data.links.telegram_channel_identifier}`
-								: undefined
-						}
-						label='Telegram'
-						icon={<Send className='h-4 w-4' />}
-					/>
-					<LinkIcon
-						href={data.links?.subreddit_url}
-						label='Reddit'
-						icon={<MessageCircle className='h-4 w-4' />}
-					/>
-				</div>
-			</div>
-
-			<Separator className='bg-white/5' />
-
-			<div className='flex flex-wrap items-end justify-between gap-4'>
-				<div className='flex flex-col gap-1'>
-					<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-						Текущая цена
-					</span>
-					<div className='flex items-baseline gap-3'>
-						<span className='font-mono text-3xl font-semibold tabular-nums text-foreground'>
+					<div className='flex flex-wrap items-baseline gap-3'>
+						<span className='font-mono text-4xl font-bold tabular-nums text-slate-900'>
 							{currencyFormatter(md.current_price?.usd)}
 						</span>
-						<ChangeBadge value={priceChange24h} />
+						<ChangeBadge value={md.price_change_percentage_24h} size='lg' />
 					</div>
 				</div>
 
-				<div className='flex gap-6 text-right'>
-					<div className='flex flex-col gap-1'>
-						<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-							ATH
-						</span>
-						<span className='font-mono text-sm tabular-nums'>
-							{currencyFormatter(md.ath?.usd)}
-						</span>
-						<span className='text-[11px] text-muted-foreground'>
-							{dateFormatter(md.ath_date?.usd)}
-						</span>
-					</div>
-					<div className='flex flex-col gap-1'>
-						<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-							ATL
-						</span>
-						<span className='font-mono text-sm tabular-nums'>
-							{currencyFormatter(md.atl?.usd)}
-						</span>
-						<span className='text-[11px] text-muted-foreground'>
-							{dateFormatter(md.atl_date?.usd)}
-						</span>
-					</div>
+				<div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+					<StatCard
+						label='Рын. капитализация'
+						value={compactFormatter(md.market_cap?.usd)}
+					/>
+					<StatCard
+						label='Объём, 24ч'
+						value={compactFormatter(md.total_volume?.usd)}
+					/>
+					<StatCard
+						label='Исторический максимум'
+						value={currencyFormatter(md.ath?.usd)}
+					/>
+					<StatCard
+						label='Предложение в обращении'
+						value={compactFormatter(md.circulating_supply)}
+						hint={data.symbol.toUpperCase()}
+					/>
 				</div>
+
+				<OverviewSection data={data} overviewText={overviewText} />
+				{...children}
 			</div>
 
-			<Separator className='bg-white/5' />
-
-			<div className='grid grid-cols-2 gap-4 sm:grid-cols-4'>
-				<div className='flex flex-col gap-1'>
-					<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-						Market Cap
-					</span>
-					<span className='font-mono text-sm font-medium tabular-nums'>
-						{compactFormatter(md.market_cap?.usd)}
-					</span>
-				</div>
-				<div className='flex flex-col gap-1'>
-					<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-						FDV
-					</span>
-					<span className='font-mono text-sm font-medium tabular-nums'>
-						{compactFormatter(md.fully_diluted_valuation?.usd)}
-					</span>
-				</div>
-				<div className='flex flex-col gap-1'>
-					<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-						Volume 24h
-					</span>
-					<span className='font-mono text-sm font-medium tabular-nums'>
-						{compactFormatter(md.total_volume?.usd)}
-					</span>
-				</div>
-				<div className='flex flex-col gap-1'>
-					<span className='text-xs uppercase tracking-wide text-muted-foreground'>
-						24h High / Low
-					</span>
-					<span className='font-mono text-sm font-medium tabular-nums'>
-						{currencyFormatter(md.high_24h?.usd)} /{' '}
-						{currencyFormatter(md.low_24h?.usd)}
-					</span>
-				</div>
+			<div className='flex flex-col gap-4'>
+				<PriceHistoryTable rows={historyRows} />
+				<SentimentBar
+					upPercentage={data.sentiment_votes_up_percentage}
+					downPercentage={data.sentiment_votes_down_percentage}
+				/>
+				<ConvertCalculator price={md.current_price?.usd} symbol={data.symbol} />
+				<LinksCard links={data.links} />
 			</div>
-
-			<SupplyGauge
-				circulating={md.circulating_supply}
-				max={md.max_supply}
-				total={md.total_supply}
-			/>
-
-			{description && (
-				<>
-					<Separator className='bg-white/5' />
-					<div className='flex flex-col gap-2'>
-						<p className='text-sm leading-relaxed text-muted-foreground'>
-							{descExpanded ? description : shortDescription}
-							{description.length > 260 && !descExpanded && '…'}
-						</p>
-						{description.length > 260 && (
-							<button
-								onClick={() => setDescExpanded(prev => !prev)}
-								className='w-fit text-xs font-medium text-amber-400 hover:underline'
-							>
-								{descExpanded ? 'Свернуть' : 'Читать далее'}
-							</button>
-						)}
-					</div>
-				</>
-			)}
-		</Card>
+		</div>
 	)
 }

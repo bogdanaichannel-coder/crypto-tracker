@@ -17,15 +17,29 @@ import {
 	useTable,
 } from '@tanstack/react-table'
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '../ui/skeleton'
 
 const PER_PAGE = 40
 
-const GRID_ROW_CLASS =
-	'grid grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_160px_1fr] w-full'
+type HideBelow = 'md' | 'lg' | undefined
 
-type Props = {}
+// Порядок и ширины должны совпадать с количеством ВИДИМЫХ колонок на каждом брейкпоинте.
+// mobile: coin, price, change, actions -> 4 колонки
+// md:     + high, low                  -> 6 колонок
+// lg:     + volume, ath_date           -> 8 колонок (полный набор)
+const GRID_ROW_CLASS = clsx(
+	'grid w-full',
+	'grid-cols-[1.5fr_1fr_1fr_90px]',
+	'md:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_120px]',
+	'lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1fr_1fr_160px]',
+)
+
+const hideBelowClass = (hideBelow: HideBelow) => {
+	if (hideBelow === 'md') return 'hidden md:flex'
+	if (hideBelow === 'lg') return 'hidden lg:flex'
+	return ''
+}
 
 const features = tableFeatures({})
 const columnHelper = createColumnHelper<typeof features, ICoinListItem>()
@@ -55,20 +69,44 @@ const Spinner = ({ className = '' }: { className?: string }) => (
 	</svg>
 )
 
-export const CoinsTable = ({}: Props) => {
+export const CoinsTable = () => {
 	const [page, setPage] = useState<number>(1)
 	const [coins, setCoins] = useState<ICoinListItem[]>([])
-	const { data, isFetching, isError, error, isBlocked } = useCoinsQuery({
-		per_page: PER_PAGE,
-		page,
-	})
+	const [hasMore, setHasMore] = useState<boolean>(true)
+	const tableRef = useRef<HTMLTableElement>(null)
+	const { data, isFetching, isError, error, isBlocked, isSuccess } =
+		useCoinsQuery({
+			per_page: PER_PAGE,
+			page,
+		})
 
 	useEffect(() => {
 		if (!data) return
-		setCoins(prev => (page === 1 ? data : [...prev, ...data]))
+
+		setHasMore(data.length === PER_PAGE)
+
+		setCoins(prev => {
+			if (page === 1) return data
+			const existingIds = new Set(prev.map(c => c.id))
+			const uniqueNew = data.filter(c => !existingIds.has(c.id))
+			return [...prev, ...uniqueNew]
+		})
+		setTimeout(
+			() =>
+				tableRef.current &&
+				page > 1 &&
+				tableRef.current.scrollTo({
+					top: tableRef.current.scrollHeight,
+					behavior: 'smooth',
+				}),
+			0,
+		)
 	}, [data, page])
 
-	const nextPage = () => setPage(v => v + 1)
+	const nextPage = () => {
+		if (!hasMore) return
+		setPage(v => v + 1)
+	}
 
 	const columns: ColumnDef<typeof features, ICoinListItem, any>[] = useMemo(
 		() => [
@@ -84,15 +122,16 @@ export const CoinsTable = ({}: Props) => {
 								alt='coin'
 								width={22}
 								height={22}
+								loading='lazy'
 								className='rounded-full shrink-0'
 							/>
-							{info.getValue().name}
+							<span className='truncate'>{info.getValue().name}</span>
 						</span>
 					),
 				},
 			),
 			columnHelper.accessor('current_price', {
-				header: () => 'Последняя цена',
+				header: () => 'Цена',
 				cell: info => {
 					const value = info.getValue<number>()
 					return <span className='font-medium'>${value?.toLocaleString()}</span>
@@ -112,13 +151,15 @@ export const CoinsTable = ({}: Props) => {
 							}
 						>
 							{isPositive ? '+' : ''}
-							{value?.toFixed(2)}
+							{value?.toFixed(2)}%
 						</span>
 					)
 				},
 			}),
 			columnHelper.accessor('high_24h', {
-				header: () => '24ч максимум',
+				id: 'high_24h',
+				header: () => '24ч макс.',
+				meta: { hideBelow: 'md' as HideBelow },
 				cell: info => (
 					<span className='text-muted-foreground'>
 						${info.getValue<number>()?.toLocaleString()}
@@ -126,7 +167,9 @@ export const CoinsTable = ({}: Props) => {
 				),
 			}),
 			columnHelper.accessor('low_24h', {
-				header: () => '24ч минимум',
+				id: 'low_24h',
+				header: () => '24ч мин.',
+				meta: { hideBelow: 'md' as HideBelow },
 				cell: info => (
 					<span className='text-muted-foreground'>
 						${info.getValue<number>()?.toLocaleString()}
@@ -134,20 +177,31 @@ export const CoinsTable = ({}: Props) => {
 				),
 			}),
 			columnHelper.accessor('market_cap_change_24h', {
-				header: () => 'Объём за 24 ч.',
-				cell: info => (
-					<span className='text-muted-foreground'>
-						${info.getValue<number>()?.toLocaleString()}
-					</span>
-				),
+				id: 'market_cap_change_24h',
+				header: () => 'Изм. капит. 24ч',
+				meta: { hideBelow: 'lg' as HideBelow },
+				cell: info => {
+					const value = info.getValue<number>()
+					const isPositive = value >= 0
+					return (
+						<span className={isPositive ? 'text-emerald-600' : 'text-red-600'}>
+							{isPositive ? '+' : ''}${value?.toLocaleString()}
+						</span>
+					)
+				},
 			}),
 			columnHelper.accessor('ath_date', {
+				id: 'ath_date',
 				header: () => 'Дата максимума',
-				cell: info => (
-					<span className='text-muted-foreground'>
-						{new Date(info.getValue<string>()).toLocaleDateString('ru-RU')}
-					</span>
-				),
+				meta: { hideBelow: 'lg' as HideBelow },
+				cell: info => {
+					const value = info.getValue<string>()
+					return (
+						<span className='text-muted-foreground'>
+							{value ? new Date(value).toLocaleDateString('ru-RU') : '—'}
+						</span>
+					)
+				},
 			}),
 			columnHelper.accessor('id', {
 				header: () => '',
@@ -156,7 +210,7 @@ export const CoinsTable = ({}: Props) => {
 						to='/crypto/$coin/'
 						params={{ coin: info.getValue().toLowerCase() }}
 					>
-						<Button variant={'link'} className=' text-amber-500'>
+						<Button variant={'link'} className='text-amber-500 px-0'>
 							Детали
 						</Button>
 					</Link>
@@ -177,89 +231,120 @@ export const CoinsTable = ({}: Props) => {
 	const isEmpty = !isFetching && coins.length === 0
 
 	return (
-		<div className='flex  flex-col gap-3'>
-			<div className='relative overflow-y-auto h-full max-h-[80dvh] border border-border bg-background shadow-sm'>
+		<div className='flex flex-col gap-3'>
+			<Table
+				ref={tableRef}
+				className='overscroll-y-auto relative  h-full max-h-[80dvh] border border-border bg-background shadow-sm  grid overflow-y-auto'
+			>
 				{table.getHeaderGroups().map(headerGroup => (
 					<TableHeader
 						key={headerGroup.id}
 						className='bg-muted/95 backdrop-blur-sm border-b border-border shadow-[0_1px_0_0_rgba(0,0,0,0.04)] sticky top-0 grid z-10'
 					>
 						<TableRow className={clsx(GRID_ROW_CLASS, 'hover:bg-transparent')}>
-							{headerGroup.headers.map((header, i) => (
-								<TableHead
-									key={header.id}
-									className={clsx(
-										i > 0 ? 'text-center' : 'text-left',
-										'font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3',
-									)}
-								>
-									{header.isPlaceholder ? null : (
-										<table.FlexRender header={header} />
-									)}
-								</TableHead>
-							))}
+							{headerGroup.headers.map((header, i) => {
+								const hideBelow = (
+									header.column.columnDef.meta as
+										{ hideBelow?: HideBelow } | undefined
+								)?.hideBelow
+
+								return (
+									<TableHead
+										key={header.id}
+										className={clsx(
+											i > 0 ? 'text-center' : 'text-left',
+											'items-center font-semibold text-xs uppercase tracking-wide text-muted-foreground py-3',
+											hideBelowClass(hideBelow),
+										)}
+									>
+										{header.isPlaceholder ? null : (
+											<table.FlexRender header={header} />
+										)}
+									</TableHead>
+								)
+							})}
 						</TableRow>
 					</TableHeader>
 				))}
 
-				<Table className='static grid'>
-					<TableBody className='grid h-full'>
-						{rows.map(row => (
-							<TableRow
-								key={row.id}
-								className={clsx(
-									GRID_ROW_CLASS,
-									'border-b border-border/60 hover:bg-muted/50 transition-colors',
-								)}
-							>
-								{row.getAllCells().map(cell => (
-									<TableCell key={cell.id} className='py-3'>
+				<TableBody className='grid h-full'>
+					{rows.map(row => (
+						<TableRow
+							key={row.id}
+							className={clsx(
+								GRID_ROW_CLASS,
+								'border-b border-border/60 hover:bg-muted/50 transition-colors',
+							)}
+						>
+							{row.getAllCells().map(cell => {
+								const hideBelow = (
+									cell.column.columnDef.meta as
+										{ hideBelow?: HideBelow } | undefined
+								)?.hideBelow
+
+								return (
+									<TableCell
+										key={cell.id}
+										className={clsx(
+											'py-3 items-center',
+											hideBelowClass(hideBelow),
+										)}
+									>
 										<table.FlexRender cell={cell} />
 									</TableCell>
-								))}
-							</TableRow>
-						))}
+								)
+							})}
+						</TableRow>
+					))}
 
-						{isFetching &&
-							Array.from({ length: PER_PAGE }).map((_, rowIndex) => (
-								<TableRow
-									key={`skeleton-${rowIndex}`}
-									className={GRID_ROW_CLASS}
-								>
-									{columns.map((_, colIndex) => (
+					{isFetching &&
+						Array.from({ length: PER_PAGE }).map((_, rowIndex) => (
+							<TableRow key={`skeleton-${rowIndex}`} className={GRID_ROW_CLASS}>
+								{columns.map((col, colIndex) => {
+									const hideBelow = (
+										col.meta as { hideBelow?: HideBelow } | undefined
+									)?.hideBelow
+
+									return (
 										<TableCell
 											key={`skeleton-cell-${colIndex}`}
-											className='py-3'
+											className={clsx(
+												'py-3 items-center',
+												hideBelowClass(hideBelow),
+											)}
 										>
 											<Skeleton className='w-full h-5 rounded-md' />
 										</TableCell>
-									))}
-								</TableRow>
-							))}
-						<Button
-							variant='ghost'
-							className='p-6 rounded-none'
-							disabled={isBlocked || isFetching}
-							onClick={nextPage}
-						>
-							{isFetching ? (
-								<>
-									<Spinner className='mr-2' />
-									Загрузка…
-								</>
-							) : (
-								'Показать ещё'
-							)}
-						</Button>
-					</TableBody>
-				</Table>
+									)
+								})}
+							</TableRow>
+						))}
+				</TableBody>
+			</Table>
 
-				{isEmpty && (
-					<div className='flex items-center justify-center py-16 text-sm text-muted-foreground'>
-						Монеты не найдены
-					</div>
-				)}
-			</div>
+			{isEmpty && (
+				<div className='flex items-center justify-center py-16 text-sm text-muted-foreground'>
+					Монеты не найдены
+				</div>
+			)}
+
+			{hasMore && (
+				<Button
+					variant='ghost'
+					className='p-6 rounded-none'
+					disabled={isBlocked || isFetching}
+					onClick={nextPage}
+				>
+					{isFetching ? (
+						<>
+							<Spinner className='mr-2' />
+							Загрузка…
+						</>
+					) : (
+						'Показать ещё'
+					)}
+				</Button>
+			)}
 
 			{isError && (
 				<div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600'>
